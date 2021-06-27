@@ -211,6 +211,17 @@ const UserSchema = new Schema({
     enum: ["active", "locked"],
     default: "active",
   },
+
+  twoFactor: {
+    secret: {
+      type: String,
+      default: undefined,
+    },
+    threshold: {
+      type: Number,
+      default: yamlConfig.twoFactor.threshold,
+    },
+  },
 })
 
 // Define getter for ratioUsd

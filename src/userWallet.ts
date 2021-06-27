@@ -1,7 +1,9 @@
 import assert from "assert"
 import moment from "moment"
+import { generateSecret, verifyToken } from "node-2fa"
+import { yamlConfig } from "./config"
 import { CSVAccountExport } from "./csvAccountExport"
-import { DbError } from "./error"
+import { DbError, TwoFactorError } from "./error"
 import { Balances } from "./interface"
 import { customerPath } from "./ledger/ledger"
 import { MainBook } from "./mongodb"
@@ -238,6 +240,79 @@ export abstract class UserWallet {
   static satsToUsd = (sats) => {
     const usdValue = UserWallet.lastPrice * sats
     return usdValue
+  }
+
+  generate2fa = () => {
+    const { secret, uri, qr } = generateSecret({
+      name: yamlConfig.name,
+      account: this.user.phone,
+    })
+    /*
+    { secret: 'XDQXYCP5AC6FA32FQXDGJSPBIDYNKK5W',
+      uri: 'otpauth://totp/My%20Awesome%20App:johndoe?secret=XDQXYCP5AC6FA32FQXDGJSPBIDYNKK5W&issuer=My%20Awesome%20App',
+      qr: 'https://chart.googleapis.com/chart?chs=166x166&chld=L|0&cht=qr&chl=otpauth://totp/My%20Awesome%20App:johndoe%3Fsecret=XDQXYCP5AC6FA32FQXDGJSPBIDYNKK5W%26issuer=My%20Awesome%20App'
+    }
+    */
+    return { secret, uri }
+  }
+
+  save2fa = async ({ secret, token }): Promise<boolean> => {
+    if (this.user.twoFactor.secret) {
+      throw new TwoFactorError("2FA is already set", { logger: this.logger })
+    }
+
+    const tokenIsValid = verifyToken(secret, token)
+
+    if (!tokenIsValid) {
+      throw new TwoFactorError(undefined, { logger: this.logger })
+    }
+
+    this.user.twoFactor.secret = secret
+
+    try {
+      await this.user.save()
+      return true
+    } catch (err) {
+      throw new DbError("Unable to save 2fa secret", {
+        forwardToClient: true,
+        logger: this.logger,
+        level: "error",
+        err,
+      })
+    }
+  }
+
+  static validate2fa = ({ secret, token, logger }): boolean => {
+    if (!secret) {
+      throw new TwoFactorError("no 2fa has been set", { logger })
+    }
+
+    if (verifyToken(secret, token)) {
+      return true
+    }
+
+    throw new TwoFactorError(undefined, { logger })
+  }
+
+  delete2fa = async ({ token }): Promise<boolean> => {
+    UserWallet.validate2fa({
+      token,
+      secret: this.user.twoFactor.secret,
+      logger: this.logger,
+    })
+
+    try {
+      this.user.twoFactor.secret = undefined
+      await this.user.save()
+      return true
+    } catch (err) {
+      throw new DbError("Unable to delete 2fa secret", {
+        forwardToClient: true,
+        logger: this.logger,
+        level: "error",
+        err,
+      })
+    }
   }
 
   sendBalance = async (): Promise<void> => {

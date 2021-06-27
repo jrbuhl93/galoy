@@ -35,6 +35,7 @@ const amountInvoice = 1000
 
 jest.mock("../notifications/notification")
 import { yamlConfig } from "../config"
+import { generateToken } from "node-2fa"
 jest.mock("../realtimePrice")
 
 const date = Date.now() + 1000 * 60 * 60 * 24 * 8
@@ -291,6 +292,36 @@ functionToTests.forEach(({ fn, name, initialFee }) => {
     const { BTC: finalBalance } = await userWallet1.getBalances()
     expect(finalBalance).toBe(initBalance1)
   }, 60000)
+
+  it(`fails to pay above 2fa threshold without 2fa token`, async () => {
+    // this is needed because this test runs twice
+    if (!userWallet0.user.twoFactor.secret) {
+      const { secret } = userWallet0.generate2fa()
+      const token = generateToken(secret)!.token
+      await userWallet0.save2fa({ secret, token })
+    }
+
+    const { request } = await createInvoice({
+      lnd: lndOutside1,
+      tokens: userWallet0.user.twoFactor.threshold + 1,
+    })
+    await expect(fn(userWallet0)({ invoice: request })).rejects.toThrow()
+
+    const { BTC: finalBalance } = await userWallet0.getBalances()
+    expect(finalBalance).toBe(initBalance0)
+  })
+
+  it(`Makes large payment with a 2fa code`, async () => {
+    const { request } = await createInvoice({
+      lnd: lndOutside1,
+      tokens: userWallet0.user.twoFactor.threshold + 1,
+    })
+
+    const token = generateToken(userWallet0.user.twoFactor.secret)!.token
+    expect(await fn(userWallet0)({ invoice: request, twoFactorToken: token })).toBe(
+      "success",
+    )
+  })
 })
 
 it(`fails to pay when user has insufficient balance`, async () => {

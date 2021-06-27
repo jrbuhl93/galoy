@@ -37,6 +37,7 @@ import {
   RouteFindingError,
   TransactionRestrictedError,
   ValidationError,
+  TwoFactorError,
 } from "./error"
 import { redis } from "./redis"
 
@@ -365,7 +366,7 @@ export const LightningMixin = (superclass) =>
         features,
         max_fee,
       } = await this.validate(params, lightningLogger)
-      const { memo: memoPayer } = params
+      const { memo: memoPayer, twoFactorToken: token } = params
 
       // not including message because it contains the preimage and we don't want to log this
       lightningLogger = lightningLogger.child({
@@ -384,6 +385,23 @@ export const LightningMixin = (superclass) =>
         params,
       })
 
+      if (
+        yamlConfig.twoFactor?.enabled &&
+        this.user.twoFactor.secret &&
+        tokens > this.user.twoFactor.threshold
+      ) {
+        if (!token) {
+          throw new TwoFactorError("Need a 2FA code to proceed with the payment", {
+            logger: lightningLogger,
+          })
+        }
+
+        UserWallet.validate2fa({
+          token,
+          logger: lightningLogger,
+          secret: this.user.twoFactor.secret,
+        })
+      }
       let fee
       let route
       let paymentPromise

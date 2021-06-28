@@ -189,6 +189,7 @@ const resolvers = {
       deposit: yamlConfig.fees.deposit,
     }),
     generate2fa: async (_, __, { wallet }) => wallet.generate2fa(),
+    validate2fa: async (_, { token }, { wallet }) => wallet.validate2fa({ token }),
   },
   Mutation: {
     requestPhoneCode: async (_, { phone }, { logger, ip }) => ({
@@ -200,7 +201,6 @@ const resolvers = {
     save2fa: async (_, { secret, token }, { wallet }) =>
       wallet.save2fa({ secret, token }),
     delete2fa: async (_, { token }, { wallet }) => wallet.delete2fa({ token }),
-    validate2fa: async (_, { token }, { wallet }) => wallet.validate2fa({ token }),
     updateUser: async (_, __, { wallet }) => ({
       setUsername: async ({ username }) => await wallet.setUsername({ username }),
       setLanguage: async ({ language }) => await wallet.setLanguage({ language }),
@@ -290,6 +290,7 @@ const permissions = shield(
       wallet: isAuthenticated,
       wallet2: isAuthenticated,
       generate2fa: isAuthenticated,
+      validate2fa: isAuthenticated,
       getLastOnChainAddress: isAuthenticated,
       getUserDetails: and(isAuthenticated, isEditor),
       getUid: and(isAuthenticated, isEditor),
@@ -300,7 +301,6 @@ const permissions = shield(
       // login: not(isAuthenticated),
       delete2fa: isAuthenticated,
       save2fa: isAuthenticated,
-      validate2fa: isAuthenticated,
       onchain: isAuthenticated,
       invoice: isAuthenticated,
       earnCompleted: isAuthenticated,

@@ -203,6 +203,7 @@ type Query {
   getLimits: Limits
   getWalletFees: WalletFees
   generate2fa: TwoFactorSecret
+  validate2fa(token: String!): Boolean
 }
 
 type TwoFactorSecret {
@@ -297,6 +298,4 @@ type Mutation {
   save2fa(secret: String!, token: String!): Boolean
 
   delete2fa(token: String!): Boolean
-
-  validate2fa(token: String!): Boolean
 }
